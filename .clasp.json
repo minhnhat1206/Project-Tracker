@@ -1,0 +1,18 @@
+﻿{
+    "scriptId":  "1ajZ2hQZfafonca_dfBw6RT7mGQT6fYNTZQkheGLEp2tJ3BN53PiSblvr",
+    "rootDir":  "C:\\Users\\user\\Desktop\\Project tracker\\deploy",
+    "scriptExtensions":  [
+                             ".js",
+                             ".gs"
+                         ],
+    "htmlExtensions":  [
+                           ".html"
+                       ],
+    "jsonExtensions":  [
+                           ".json"
+                       ],
+    "filePushOrder":  [
+
+                      ],
+    "skipSubdirectories":  false
+}
