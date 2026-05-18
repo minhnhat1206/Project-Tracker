@@ -210,7 +210,13 @@ const useAppStore = create((set, get) => ({
       members: {
         ...state.members,
         [projectId]: [...(state.members[projectId] || []), member]
-      }
+      },
+      projects: state.projects.map(p => {
+        if (p.id !== projectId) return p
+        const existing = p.member_emails ? p.member_emails.split(',').map(e => e.trim()).filter(Boolean) : []
+        if (!existing.includes(email)) existing.push(email)
+        return { ...p, member_emails: existing.join(',') }
+      }),
     }))
     return member
   },
@@ -218,11 +224,18 @@ const useAppStore = create((set, get) => ({
   removeMember: async (projectId, email) => {
     const { runGAS } = get()
     const original = get().members[projectId] || []
+    const currentUserEmail = get().currentUser?.email
     set(state => ({
       members: { ...state.members, [projectId]: original.filter(m => m.email !== email) }
     }))
     try {
-      await runGAS('removeMember', { projectId, email })
+      const result = await runGAS('removeMember', { projectId, email })
+      set(state => ({
+        // If current user removed themselves, drop the project from their list
+        projects: state.projects
+          .filter(p => !(p.id === projectId && email === currentUserEmail))
+          .map(p => p.id === projectId ? { ...p, member_emails: result.member_emails } : p),
+      }))
     } catch (err) {
       set(state => ({ members: { ...state.members, [projectId]: original } }))
       throw err
