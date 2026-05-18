@@ -103,6 +103,12 @@ function process(action, payload) {
       case 'setupTriggers':
         result = setupTriggers()
         break
+      case 'setupMembersSheet':
+        result = setupMembersSheet()
+        break
+      case 'migrateProjectIds':
+        result = migrateProjectIds()
+        break
       case 'diagnose':
         result = diagnose()
         break

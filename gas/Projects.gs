@@ -33,8 +33,20 @@ function createProject(data) {
 function getProjects(userEmail) {
   const email = userEmail || getCurrentUser().email
   const rows = getSheetData('Projects')
+  const allMembers = getSheetData('Members')
+
+  // Collect project IDs where this user has a Members row (authoritative when project_id is set)
+  const memberProjectIds = new Set()
+  allMembers.forEach(m => {
+    if (String(m.email) === email && m.project_id) {
+      memberProjectIds.add(String(m.project_id))
+    }
+  })
+
   return rows.filter(p => {
     if (p.owner_email === email) return true
+    if (memberProjectIds.has(String(p.id))) return true
+    // Fallback: check member_emails directly (for rows not yet migrated)
     const members = p.member_emails ? p.member_emails.split(',').map(e => e.trim()) : []
     return members.includes(email)
   })

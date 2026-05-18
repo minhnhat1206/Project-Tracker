@@ -94,6 +94,91 @@ function logSync(direction, service, taskId, status, message) {
   }
 }
 
+// ─── MIGRATION ────────────────────────────────────────────────────────────────
+
+function setupMembersSheet() {
+  const sheet = getSheet('Members')
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+  if (headers.includes('project_id')) return { status: 'already_exists' }
+  sheet.insertColumnAfter(1)
+  sheet.getRange(1, 2).setValue('project_id')
+  sheet.getRange(1, 2).setFontWeight('bold')
+  console.log('Added project_id column to Members sheet')
+  return { status: 'column_added' }
+}
+
+function migrateProjectIds() {
+  const projects = getSheetData('Projects')
+  const sheet = getSheet('Members')
+  const data = sheet.getDataRange().getValues()
+  const headers = data[0]
+
+  const projectIdCol = headers.indexOf('project_id')
+  const emailCol = headers.indexOf('email')
+  const roleCol = headers.indexOf('role')
+  const joinedAtCol = headers.indexOf('joined_at')
+
+  if (projectIdCol === -1) throw new Error('Run setupMembersSheet() first.')
+
+  let migrated = 0, skipped = 0
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][projectIdCol]) continue // already set
+
+    const email = String(data[i][emailCol])
+    const role = String(data[i][roleCol])
+    const joinedTime = data[i][joinedAtCol] ? new Date(data[i][joinedAtCol]).getTime() : 0
+
+    let matchedId = null
+
+    if (role === 'owner') {
+      const candidates = projects.filter(p => p.owner_email === email)
+      if (candidates.length === 1) {
+        matchedId = candidates[0].id
+      } else if (candidates.length > 1 && joinedTime) {
+        let minDiff = Infinity
+        candidates.forEach(p => {
+          const diff = Math.abs(new Date(p.created_at).getTime() - joinedTime)
+          if (diff < minDiff) { minDiff = diff; matchedId = p.id }
+        })
+      }
+    } else {
+      // Check member_emails first
+      const candidates = projects.filter(p => {
+        const emails = p.member_emails ? p.member_emails.split(',').map(e => e.trim()) : []
+        return emails.includes(email)
+      })
+      if (candidates.length === 1) {
+        matchedId = candidates[0].id
+      } else if (candidates.length > 1 && joinedTime) {
+        let minDiff = Infinity
+        candidates.forEach(p => {
+          const diff = Math.abs(new Date(p.created_at).getTime() - joinedTime)
+          if (diff < minDiff) { minDiff = diff; matchedId = p.id }
+        })
+      } else if (candidates.length === 0 && joinedTime) {
+        // Orphaned row — match by closest project creation time (within 1 day)
+        let minDiff = Infinity
+        projects.forEach(p => {
+          if (!p.created_at) return
+          const diff = Math.abs(new Date(p.created_at).getTime() - joinedTime)
+          if (diff < minDiff && diff < 86400000) { minDiff = diff; matchedId = p.id }
+        })
+      }
+    }
+
+    if (matchedId) {
+      sheet.getRange(i + 1, projectIdCol + 1).setValue(matchedId)
+      migrated++
+    } else {
+      skipped++
+    }
+  }
+
+  console.log('Migrated: ' + migrated + ', Skipped: ' + skipped)
+  return { migrated, skipped }
+}
+
 // ─── SETUP (chạy 1 lần từ GAS editor) ────────────────────────────────────────
 
 function setupApp() {
