@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { viteSingleFile } from 'vite-plugin-singlefile'
 
-const GAS_EXEC_URL = 'https://script.google.com/macros/s/AKfycby-BEJMpMAcva0qL_6Ce9hX0dXbYPMbkuFuoz6eUDXnoVeoiS_NOk2Gp1UiRb8DT8Mllg/exec'
+const GAS_EXEC_URL = 'https://script.google.com/macros/s/AKfycbzgVE9dX4qzDPNF_1leATULvRK9yHxIEVrW7u3ZRXhkmA9V9WRr_LWR3RKhUQNT_NhFZQ/exec'
 
 function gasProxyPlugin() {
   return {
