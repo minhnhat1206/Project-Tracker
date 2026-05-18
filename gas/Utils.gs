@@ -123,7 +123,7 @@ function setupApp() {
     Tasks: ['id', 'project_id', 'title', 'description', 'assignee_email', 'status', 'priority',
             'importance', 'estimated_hours', 'tags', 'deadline', 'calendar_event_id', 'gtask_id',
             'created_at', 'updated_at'],
-    Members: ['id', 'email', 'display_name', 'role', 'joined_at'],
+    Members: ['id', 'project_id', 'email', 'display_name', 'role', 'joined_at'],
     SyncLog: ['timestamp', 'direction', 'service', 'task_id', 'status', 'message'],
   }
 
