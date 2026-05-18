@@ -3,11 +3,6 @@
   "dependencies": {
     "enabledAdvancedServices": [
       {
-        "userSymbol": "Calendar",
-        "serviceId": "calendar",
-        "version": "v3"
-      },
-      {
         "userSymbol": "Tasks",
         "serviceId": "tasks",
         "version": "v1"
