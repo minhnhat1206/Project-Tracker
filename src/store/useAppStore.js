@@ -217,13 +217,16 @@ const useAppStore = create((set, get) => ({
 
   removeMember: async (projectId, email) => {
     const { runGAS } = get()
-    await runGAS('removeMember', { projectId, email })
+    const original = get().members[projectId] || []
     set(state => ({
-      members: {
-        ...state.members,
-        [projectId]: (state.members[projectId] || []).filter(m => m.email !== email)
-      }
+      members: { ...state.members, [projectId]: original.filter(m => m.email !== email) }
     }))
+    try {
+      await runGAS('removeMember', { projectId, email })
+    } catch (err) {
+      set(state => ({ members: { ...state.members, [projectId]: original } }))
+      throw err
+    }
   },
 
   // Internal GAS runner

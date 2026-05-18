@@ -575,7 +575,7 @@ export default function ProjectDetail() {
                     <span style={{ fontSize: 12, fontWeight: 500 }}>{getUserName(m.email) || m.display_name}</span>
                     {project.owner_email === currentUser?.email && (
                       <button
-                        onClick={() => removeMember(id, m.email)}
+                        onClick={() => removeMember(id, m.email).catch(err => console.error('removeMember failed:', err.message))}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 0 2px', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center' }}
                         title="Xóa khỏi project"
                       ><X size={12} /></button>

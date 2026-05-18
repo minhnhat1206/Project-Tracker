@@ -88,12 +88,13 @@ function addMember(projectId, email) {
 }
 
 function removeMember(projectId, email) {
-  requireOwner(projectId)
   const project = getProjectById(projectId)
-  const currentMembers = project.member_emails ? project.member_emails.split(',').map(e => e.trim()) : []
+  const currentMembers = project.member_emails ? project.member_emails.split(',').map(e => e.trim()).filter(Boolean) : []
   const updated = currentMembers.filter(m => m !== email)
   const rowIndex = findRowById('Projects', projectId)
+  if (rowIndex === -1) throw new Error('Project not found in sheet')
   updateRow('Projects', rowIndex, { member_emails: updated.join(',') })
+  return { member_emails: updated.join(',') }
 }
 
 function getMembers(projectId) {
