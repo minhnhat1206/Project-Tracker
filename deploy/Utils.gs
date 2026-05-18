@@ -43,7 +43,14 @@ function getSheetData(sheetName) {
   const headers = data[0]
   return data.slice(1).map(row => {
     const obj = {}
-    headers.forEach((header, i) => { obj[header] = row[i] })
+    headers.forEach((header, i) => {
+      let val = row[i]
+      // Google Sheets returns date cells as JS Date objects — convert to YYYY-MM-DD string
+      if (val instanceof Date && !isNaN(val.getTime())) {
+        val = formatDate(val)
+      }
+      obj[header] = val
+    })
     return obj
   })
 }

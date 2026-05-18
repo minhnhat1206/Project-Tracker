@@ -15,6 +15,18 @@ const STATUS_CHIP = {
   cancelled:   { bg: 'rgba(60,60,67,0.08)',     color: '#AEAEB2',          dot: '#AEAEB2' },
 }
 
+// Normalize any date format to YYYY-MM-DD
+function toYMD(d) {
+  if (!d) return ''
+  if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d
+  const date = new Date(d)
+  if (isNaN(date.getTime())) return ''
+  const y = date.getUTCFullYear()
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
@@ -34,7 +46,7 @@ export default function CalendarView() {
   const allTasks = useMemo(() => Object.values(tasks).flat(), [tasks])
 
   const visibleTasks = useMemo(() => {
-    const base = allTasks.filter(t => t.deadline)
+    const base = allTasks.filter(t => toYMD(t.deadline))
     if (onlyMine && currentUser) return base.filter(t => t.assignee_email === currentUser.email)
     return base
   }, [allTasks, onlyMine, currentUser])
@@ -42,8 +54,10 @@ export default function CalendarView() {
   const tasksByDate = useMemo(() => {
     const map = {}
     visibleTasks.forEach(task => {
-      if (!map[task.deadline]) map[task.deadline] = []
-      map[task.deadline].push(task)
+      const key = toYMD(task.deadline)
+      if (!key) return
+      if (!map[key]) map[key] = []
+      map[key].push(task)
     })
     return map
   }, [visibleTasks])

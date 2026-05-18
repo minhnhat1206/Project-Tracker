@@ -90,8 +90,6 @@ function addMember(projectId, email) {
 function removeMember(projectId, email) {
   requireOwner(projectId)
   const project = getProjectById(projectId)
-  if (email === project.owner_email) throw new Error('Cannot remove project owner')
-
   const currentMembers = project.member_emails ? project.member_emails.split(',').map(e => e.trim()) : []
   const updated = currentMembers.filter(m => m !== email)
   const rowIndex = findRowById('Projects', projectId)

@@ -573,7 +573,7 @@ export default function ProjectDetail() {
                   <div key={m.email} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(60,60,67,0.06)', borderRadius: 20, padding: '3px 8px 3px 4px' }}>
                     <Avatar email={m.email} size={22} />
                     <span style={{ fontSize: 12, fontWeight: 500 }}>{getUserName(m.email) || m.display_name}</span>
-                    {project.owner_email === currentUser?.email && m.email !== project.owner_email && (
+                    {project.owner_email === currentUser?.email && (
                       <button
                         onClick={() => removeMember(id, m.email)}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 0 2px', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center' }}

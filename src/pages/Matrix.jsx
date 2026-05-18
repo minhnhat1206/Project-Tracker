@@ -63,10 +63,10 @@ function DraggableMiniTask({ task, color, projectName }) {
 
 function AddTaskModal({ open, onClose, quadrant, projects }) {
   const { createTask, currentUser } = useAppStore()
-  const [form, setForm] = useState({ title: '', project_id: '', assignee_email: '' })
+  const [form, setForm] = useState({ title: '', project_id: '', assignee_email: '', deadline: '' })
 
   useEffect(() => {
-    if (open) setForm({ title: '', project_id: projects[0]?.id || '', assignee_email: currentUser?.email || '' })
+    if (open) setForm({ title: '', project_id: projects[0]?.id || '', assignee_email: currentUser?.email || '', deadline: '' })
   }, [open])
 
   const handleSubmit = (e) => {
@@ -79,7 +79,6 @@ function AddTaskModal({ open, onClose, quadrant, projects }) {
       priority: quadrant.priority,
       importance: quadrant.importance,
       tags: '',
-      deadline: '',
       estimated_hours: '',
       description: '',
     }).catch(err => console.error('createTask failed:', err.message))
@@ -94,11 +93,17 @@ function AddTaskModal({ open, onClose, quadrant, projects }) {
           <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 5 }}>Tên task *</label>
           <input style={inputStyle} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Task title" autoFocus required />
         </div>
-        <div>
-          <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 5 }}>Project *</label>
-          <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.project_id} onChange={e => setForm(f => ({ ...f, project_id: e.target.value }))}>
-            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 5 }}>Project *</label>
+            <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.project_id} onChange={e => setForm(f => ({ ...f, project_id: e.target.value }))}>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 5 }}>Deadline</label>
+            <input type="date" style={inputStyle} value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} />
+          </div>
         </div>
         <div>
           <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 5 }}>Assignee</label>
