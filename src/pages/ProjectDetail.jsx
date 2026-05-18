@@ -508,6 +508,7 @@ export default function ProjectDetail() {
   const [defaultStatus, setDefaultStatus] = useState('todo')
   const [syncing, setSyncing] = useState(false)
   const [showAddMember, setShowAddMember] = useState(false)
+  const [memberError, setMemberError] = useState('')
 
   const project = projects.find(p => p.id === id)
   const projectTasks = tasks[id] || []
@@ -569,19 +570,33 @@ export default function ProjectDetail() {
               </div>
               {project.description && <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>{project.description}</div>}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                {(members[id] || []).map(m => (
-                  <div key={m.email} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(60,60,67,0.06)', borderRadius: 20, padding: '3px 8px 3px 4px' }}>
-                    <Avatar email={m.email} size={22} />
-                    <span style={{ fontSize: 12, fontWeight: 500 }}>{getUserName(m.email) || m.display_name}</span>
-                    {project.owner_email === currentUser?.email && (
-                      <button
-                        onClick={() => removeMember(id, m.email).catch(err => console.error('removeMember failed:', err.message))}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 0 2px', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center' }}
-                        title="Xóa khỏi project"
-                      ><X size={12} /></button>
-                    )}
-                  </div>
-                ))}
+                {(members[id] || []).map(m => {
+                  const isOwner = m.email === project.owner_email
+                  const canRemove = project.owner_email === currentUser?.email && !isOwner
+                  return (
+                    <div key={m.email} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(60,60,67,0.06)', borderRadius: 20, padding: '3px 8px 3px 4px' }}>
+                      <Avatar email={m.email} size={22} />
+                      <span style={{ fontSize: 12, fontWeight: 500 }}>{getUserName(m.email) || m.display_name}</span>
+                      {isOwner && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 5, background: 'rgba(0,122,255,0.1)', color: 'var(--accent-blue)', marginLeft: 1 }}>Owner</span>
+                      )}
+                      {canRemove && (
+                        <button
+                          onClick={async () => {
+                            setMemberError('')
+                            try { await removeMember(id, m.email) }
+                            catch (err) { setMemberError('Không thể xóa member: ' + err.message) }
+                          }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 0 2px', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center' }}
+                          title="Xóa khỏi project"
+                        ><X size={12} /></button>
+                      )}
+                    </div>
+                  )
+                })}
+                {memberError && (
+                  <span style={{ fontSize: 12, color: 'var(--accent-red)', padding: '3px 8px', borderRadius: 20, background: 'rgba(255,59,48,0.08)' }}>{memberError}</span>
+                )}
                 {project.owner_email === currentUser?.email && (
                   <div style={{ position: 'relative' }}>
                     <button

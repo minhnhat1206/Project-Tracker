@@ -203,11 +203,13 @@ const useAppStore = create((set, get) => ({
 
   addMember: async (projectId, email) => {
     const { runGAS } = get()
-    const member = await runGAS('addMember', { projectId, email })
+    const tempMember = { email, display_name: email.split('@')[0] }
+    const original = get().members[projectId] || []
+    // Optimistic add
     set(state => ({
       members: {
         ...state.members,
-        [projectId]: [...(state.members[projectId] || []), member]
+        [projectId]: [...(state.members[projectId] || []), tempMember],
       },
       projects: state.projects.map(p => {
         if (p.id !== projectId) return p
@@ -216,7 +218,28 @@ const useAppStore = create((set, get) => ({
         return { ...p, member_emails: existing.join(',') }
       }),
     }))
-    return member
+    try {
+      const member = await runGAS('addMember', { projectId, email })
+      // Replace temp entry with real data from GAS
+      set(state => ({
+        members: {
+          ...state.members,
+          [projectId]: state.members[projectId].map(m => m.email === email ? member : m),
+        },
+      }))
+      return member
+    } catch (err) {
+      // Rollback
+      set(state => ({
+        members: { ...state.members, [projectId]: original },
+        projects: state.projects.map(p => {
+          if (p.id !== projectId) return p
+          const existing = p.member_emails ? p.member_emails.split(',').map(e => e.trim()).filter(Boolean) : []
+          return { ...p, member_emails: existing.filter(e => e !== email).join(',') }
+        }),
+      }))
+      throw err
+    }
   },
 
   removeMember: async (projectId, email) => {
@@ -228,7 +251,15 @@ const useAppStore = create((set, get) => ({
     }))
     try {
       const result = await runGAS('removeMember', { projectId, email })
+      const resultEmails = result.member_emails
+        ? result.member_emails.split(',').map(e => e.trim()).filter(Boolean)
+        : []
       set(state => ({
+        // Sync members list from authoritative GAS result
+        members: {
+          ...state.members,
+          [projectId]: (state.members[projectId] || []).filter(m => resultEmails.includes(m.email)),
+        },
         // If current user removed themselves, drop the project from their list
         projects: state.projects
           .filter(p => !(p.id === projectId && email === currentUserEmail))
