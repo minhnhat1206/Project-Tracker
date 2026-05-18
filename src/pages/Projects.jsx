@@ -148,7 +148,7 @@ function NewProjectModal({ open, onClose }) {
 }
 
 export default function Projects() {
-  const { projects, tasks, loadProjects, loadTasks } = useAppStore()
+  const { projects, tasks, loadProjects, loadTasks, currentUser } = useAppStore()
   const [showModal, setShowModal] = useState(false)
   const [filter, setFilter] = useState('active')
 
@@ -158,7 +158,12 @@ export default function Projects() {
     })
   }, [])
 
-  const filtered = projects.filter(p => filter === 'all' || p.status === filter)
+  const filtered = projects
+    .filter(p => {
+      const emails = p.member_emails ? p.member_emails.split(',').map(e => e.trim()).filter(Boolean) : []
+      return emails.includes(currentUser?.email)
+    })
+    .filter(p => filter === 'all' || p.status === filter)
 
   return (
     <PageWrapper>

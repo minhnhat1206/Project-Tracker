@@ -28,7 +28,8 @@ const useAppStore = create((set, get) => ({
       sessionStorage.setItem('pm_user', JSON.stringify(user))
       localStorage.removeItem('pm_user')
     }
-    set({ currentUser: user })
+    // Clear stale data from previous user's session
+    set({ currentUser: user, projects: [], tasks: {}, members: {} })
   },
 
   logout: () => {
@@ -42,10 +43,7 @@ const useAppStore = create((set, get) => ({
       const { runGAS } = get()
       const userEmail = get().currentUser?.email
       const projects = await runGAS('getProjects', { userEmail })
-      const current = get().projects
-      if (projects.length > 0 || current.length === 0) {
-        set({ projects })
-      }
+      set({ projects })
       return projects
     } catch (err) {
       console.error('loadProjects error:', err)
