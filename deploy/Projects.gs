@@ -99,9 +99,12 @@ function removeMember(projectId, email) {
 }
 
 function getMembers(projectId) {
-  return [
-    { id: 'u1', email: 'minhnhatnhc@gmail.com', display_name: 'Nhật', role: 'owner', joined_at: '2026-01-01T00:00:00Z' },
-    { id: 'u2', email: 'truong.nhat3040@gmail.com', display_name: 'Trường', role: 'member', joined_at: '2026-01-01T00:00:00Z' },
-    { id: 'u3', email: 'anhhieund2002@gmail.com', display_name: 'Hiếu', role: 'member', joined_at: '2026-01-01T00:00:00Z' },
-  ]
+  const project = getProjectById(projectId)
+  const memberEmails = project.member_emails ? project.member_emails.split(',').map(e => e.trim()).filter(Boolean) : []
+  const allMembers = getSheetData('Members')
+  // Return matched members; fall back to email-only objects if not in Members sheet
+  return memberEmails.map(email => {
+    const found = allMembers.find(m => m.email === email)
+    return found || { id: email, email, display_name: email.split('@')[0], role: email === project.owner_email ? 'owner' : 'member', joined_at: '' }
+  })
 }

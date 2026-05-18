@@ -40,7 +40,8 @@ const useAppStore = create((set, get) => ({
   loadProjects: async () => {
     try {
       const { runGAS } = get()
-      const projects = await runGAS('getProjects', {})
+      const userEmail = get().currentUser?.email
+      const projects = await runGAS('getProjects', { userEmail })
       const current = get().projects
       if (projects.length > 0 || current.length === 0) {
         set({ projects })

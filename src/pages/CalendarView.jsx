@@ -23,6 +23,7 @@ export default function CalendarView() {
   const [viewDate, setViewDate] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState(null)
   const [selectedTask, setSelectedTask] = useState(null)
+  const [onlyMine, setOnlyMine] = useState(false)
 
   useEffect(() => {
     loadProjects().then(projs => {
@@ -32,20 +33,20 @@ export default function CalendarView() {
 
   const allTasks = useMemo(() => Object.values(tasks).flat(), [tasks])
 
-  // Only show tasks assigned to the logged-in user
-  const myTasks = useMemo(() => {
-    if (!currentUser) return []
-    return allTasks.filter(t => t.assignee_email === currentUser.email && t.deadline)
-  }, [allTasks, currentUser])
+  const visibleTasks = useMemo(() => {
+    const base = allTasks.filter(t => t.deadline)
+    if (onlyMine && currentUser) return base.filter(t => t.assignee_email === currentUser.email)
+    return base
+  }, [allTasks, onlyMine, currentUser])
 
   const tasksByDate = useMemo(() => {
     const map = {}
-    myTasks.forEach(task => {
+    visibleTasks.forEach(task => {
       if (!map[task.deadline]) map[task.deadline] = []
       map[task.deadline].push(task)
     })
     return map
-  }, [myTasks])
+  }, [visibleTasks])
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -98,12 +99,21 @@ export default function CalendarView() {
             Today
           </button>
         </div>
-        {currentUser && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
-            <Avatar email={currentUser.email} size={24} />
-            Task của {currentUser.name || getUserName(currentUser.email)}
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={() => setOnlyMine(v => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 20,
+              border: onlyMine ? '1.5px solid var(--accent-blue)' : '1.5px solid var(--border-separator)',
+              background: onlyMine ? 'rgba(0,122,255,0.10)' : 'rgba(255,255,255,0.6)',
+              color: onlyMine ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              cursor: 'pointer', fontSize: 13, fontWeight: onlyMine ? 600 : 400, transition: 'all 150ms',
+            }}
+          >
+            {currentUser && <Avatar email={currentUser.email} size={18} />}
+            Của tôi
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: selectedDay ? '1fr 280px' : '1fr', gap: 16 }}>

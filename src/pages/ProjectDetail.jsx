@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Plus, RefreshCw, ChevronLeft, LayoutList, LayoutGrid, BarChart2 } from 'lucide-react'
+import { DndContext, DragOverlay, useDroppable, useDraggable, closestCenter } from '@dnd-kit/core'
+import { Plus, RefreshCw, ChevronLeft, LayoutList, LayoutGrid, BarChart2, UserPlus, X } from 'lucide-react'
 import PageWrapper from '../components/layout/PageWrapper'
 import GlassCard from '../components/ui/GlassCard'
 import TaskCard from '../components/ui/TaskCard'
@@ -111,9 +112,35 @@ function KanbanCard({ task, onClick }) {
   )
 }
 
-function KanbanColumn({ column, tasks, onEdit, onAdd }) {
+function DraggableKanbanCard({ task, onEdit }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id, data: { task } })
+  const didDrag = useRef(false)
+  useEffect(() => { if (isDragging) didDrag.current = true }, [isDragging])
   return (
-    <div style={{ background: column.bg, borderRadius: 16, padding: '14px 12px', minHeight: 320, display: 'flex', flexDirection: 'column', border: '1px solid rgba(60,60,67,0.07)' }}>
+    <div
+      ref={setNodeRef} {...listeners} {...attributes}
+      onPointerDown={() => { didDrag.current = false }}
+      onClick={() => { if (!didDrag.current) onEdit(task) }}
+      style={{ opacity: isDragging ? 0.3 : 1, touchAction: 'none', cursor: 'grab' }}
+    >
+      <KanbanCard task={task} />
+    </div>
+  )
+}
+
+function KanbanColumn({ column, tasks, onEdit, onAdd }) {
+  const { setNodeRef, isOver } = useDroppable({ id: column.id })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        background: isOver ? column.bgOver || column.bg : column.bg,
+        borderRadius: 16, padding: '14px 12px', minHeight: 320,
+        display: 'flex', flexDirection: 'column',
+        border: isOver ? `2px solid ${column.color}` : '1px solid rgba(60,60,67,0.07)',
+        transition: 'border 120ms',
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: column.color, flexShrink: 0 }} />
@@ -123,7 +150,7 @@ function KanbanColumn({ column, tasks, onEdit, onAdd }) {
         <button onClick={onAdd} style={{ width: 24, height: 24, borderRadius: 6, border: 'none', background: 'rgba(60,60,67,0.08)', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
       </div>
       <div style={{ flex: 1 }}>
-        {tasks.map(task => <KanbanCard key={task.id} task={task} onClick={() => onEdit(task)} />)}
+        {tasks.map(task => <DraggableKanbanCard key={task.id} task={task} onEdit={onEdit} />)}
         {tasks.length === 0 && <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-tertiary)', fontSize: 13 }}>No tasks</div>}
       </div>
     </div>
@@ -131,6 +158,8 @@ function KanbanColumn({ column, tasks, onEdit, onAdd }) {
 }
 
 function KanbanBoard({ tasks, onEdit, onAdd }) {
+  const { updateTask } = useAppStore()
+  const [activeTask, setActiveTask] = useState(null)
   const sevenDaysAgo = useMemo(() => { const d = new Date(); d.setDate(d.getDate() - 7); d.setHours(0, 0, 0, 0); return d }, [])
 
   const colTasks = (colId) => {
@@ -138,12 +167,29 @@ function KanbanBoard({ tasks, onEdit, onAdd }) {
     return tasks.filter(t => t.status === 'done' && new Date(t.updated_at) >= sevenDaysAgo)
   }
 
+  const handleDragEnd = ({ active, over }) => {
+    setActiveTask(null)
+    if (!over) return
+    const task = active.data.current?.task
+    if (!task || task.status === over.id) return
+    updateTask(task.id, { status: over.id }).catch(err => console.error('[kanban dnd]', err.message))
+  }
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-      {KANBAN_COLUMNS.map(col => (
-        <KanbanColumn key={col.id} column={col} tasks={colTasks(col.id)} onEdit={onEdit} onAdd={() => onAdd(col.id)} />
-      ))}
-    </div>
+    <DndContext
+      onDragStart={({ active }) => setActiveTask(active.data.current?.task)}
+      onDragEnd={handleDragEnd}
+      collisionDetection={closestCenter}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+        {KANBAN_COLUMNS.map(col => (
+          <KanbanColumn key={col.id} column={col} tasks={colTasks(col.id)} onEdit={onEdit} onAdd={() => onAdd(col.id)} />
+        ))}
+      </div>
+      <DragOverlay dropAnimation={null}>
+        {activeTask && <KanbanCard task={activeTask} />}
+      </DragOverlay>
+    </DndContext>
   )
 }
 
@@ -334,7 +380,11 @@ function ProjectReports({ tasks }) {
 // ─── Task Modal ────────────────────────────────────────────────────────────────
 
 function TaskModal({ open, onClose, projectId, task = null, defaultStatus = 'todo' }) {
-  const { createTask, updateTask, currentUser } = useAppStore()
+  const { createTask, updateTask, currentUser, members } = useAppStore()
+  const projectMembers = members[projectId] || []
+  const assigneeOptions = projectMembers.length > 0
+    ? projectMembers.map(m => ({ email: m.email, name: getUserName(m.email) || m.display_name }))
+    : KNOWN_USERS.map(u => ({ email: u.email, name: u.name }))
   const [form, setForm] = useState({
     title: '', description: '', assignee_email: currentUser?.email || '',
     status: defaultStatus, priority: 'not_urgent', importance: 'important',
@@ -416,7 +466,7 @@ function TaskModal({ open, onClose, projectId, task = null, defaultStatus = 'tod
             <label style={labelStyle}>Assignee</label>
             <select style={selectStyle} value={form.assignee_email} onChange={e => set('assignee_email', e.target.value)}>
               <option value="">-- Chọn thành viên --</option>
-              {KNOWN_USERS.map(u => (
+              {assigneeOptions.map(u => (
                 <option key={u.email} value={u.email}>{u.name}</option>
               ))}
             </select>
@@ -448,7 +498,7 @@ const TABS = ['all', 'todo', 'in_progress', 'done']
 export default function ProjectDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { projects, tasks, loadTasks, loadMembers, triggerSync, reloadTasks } = useAppStore()
+  const { projects, tasks, loadTasks, loadMembers, triggerSync, reloadTasks, members, addMember, removeMember, currentUser } = useAppStore()
   const [filters, setFilters] = useState({ status: null, assignee_email: null, deadline_from: null, deadline_to: null })
   const [tab, setTab] = useState('all')
   const [view, setView] = useState('kanban')
@@ -457,6 +507,7 @@ export default function ProjectDetail() {
   const [editingTask, setEditingTask] = useState(null)
   const [defaultStatus, setDefaultStatus] = useState('todo')
   const [syncing, setSyncing] = useState(false)
+  const [showAddMember, setShowAddMember] = useState(false)
 
   const project = projects.find(p => p.id === id)
   const projectTasks = tasks[id] || []
@@ -502,8 +553,6 @@ export default function ProjectDetail() {
     )
   }
 
-  const memberEmails = project.member_emails ? project.member_emails.split(',').filter(Boolean) : []
-
   return (
     <PageWrapper>
       {/* Header */}
@@ -519,13 +568,44 @@ export default function ProjectDetail() {
                 <Badge type={project.status} />
               </div>
               {project.description && <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>{project.description}</div>}
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                {memberEmails.map((email, i) => (
-                  <div key={email} title={getUserName(email)} style={{ marginLeft: i > 0 ? -8 : 0 }}>
-                    <Avatar email={email} size={28} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                {(members[id] || []).map(m => (
+                  <div key={m.email} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(60,60,67,0.06)', borderRadius: 20, padding: '3px 8px 3px 4px' }}>
+                    <Avatar email={m.email} size={22} />
+                    <span style={{ fontSize: 12, fontWeight: 500 }}>{getUserName(m.email) || m.display_name}</span>
+                    {project.owner_email === currentUser?.email && m.email !== project.owner_email && (
+                      <button
+                        onClick={() => removeMember(id, m.email)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 0 2px', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center' }}
+                        title="Xóa khỏi project"
+                      ><X size={12} /></button>
+                    )}
                   </div>
                 ))}
-                <span style={{ marginLeft: 12, fontSize: 13, color: 'var(--text-secondary)' }}>{memberEmails.length} thành viên</span>
+                {project.owner_email === currentUser?.email && (
+                  <div style={{ position: 'relative' }}>
+                    <button
+                      onClick={() => setShowAddMember(v => !v)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, border: '1.5px dashed var(--border-separator)', background: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}
+                    ><UserPlus size={13} /> Thêm</button>
+                    {showAddMember && (
+                      <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 20, background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.12)', padding: 8, minWidth: 160 }}>
+                        {KNOWN_USERS.filter(u => !(members[id] || []).find(m => m.email === u.email)).map(u => (
+                          <button key={u.email} onClick={() => { addMember(id, u.email); setShowAddMember(false) }}
+                            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', fontSize: 13 }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,122,255,0.07)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                          >
+                            <Avatar email={u.email} size={22} />{u.name}
+                          </button>
+                        ))}
+                        {KNOWN_USERS.filter(u => !(members[id] || []).find(m => m.email === u.email)).length === 0 && (
+                          <div style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '8px 10px' }}>Đã thêm tất cả</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
