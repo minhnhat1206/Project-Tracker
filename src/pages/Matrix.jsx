@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { DndContext, DragOverlay, useDroppable, useDraggable, closestCenter } from '@dnd-kit/core'
 import PageWrapper from '../components/layout/PageWrapper'
 import Avatar from '../components/ui/Avatar'
-import EmptyState from '../components/ui/EmptyState'
+import Modal from '../components/ui/Modal'
 import useAppStore from '../store/useAppStore'
 import { KNOWN_USERS, getUserName } from '../config/users'
 
@@ -61,7 +61,65 @@ function DraggableMiniTask({ task, color, projectName }) {
   )
 }
 
-function QuadrantDropZone({ quadrant, tasks, projectMap }) {
+function AddTaskModal({ open, onClose, quadrant, projects }) {
+  const { createTask, currentUser } = useAppStore()
+  const [form, setForm] = useState({ title: '', project_id: '', assignee_email: '' })
+
+  useEffect(() => {
+    if (open) setForm({ title: '', project_id: projects[0]?.id || '', assignee_email: currentUser?.email || '' })
+  }, [open])
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (!form.title.trim() || !form.project_id) return
+    onClose()
+    createTask({
+      ...form,
+      status: 'todo',
+      priority: quadrant.priority,
+      importance: quadrant.importance,
+      tags: '',
+      deadline: '',
+      estimated_hours: '',
+      description: '',
+    }).catch(err => console.error('createTask failed:', err.message))
+  }
+
+  const inputStyle = { width: '100%', padding: '9px 12px', borderRadius: 9, border: '1px solid var(--border-separator)', background: 'rgba(255,255,255,0.5)', fontSize: 14, color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
+
+  return (
+    <Modal open={open} onClose={onClose} title={`New Task — ${quadrant?.label}`} width={440}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 5 }}>Tên task *</label>
+          <input style={inputStyle} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Task title" autoFocus required />
+        </div>
+        <div>
+          <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 5 }}>Project *</label>
+          <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.project_id} onChange={e => setForm(f => ({ ...f, project_id: e.target.value }))}>
+            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 5 }}>Assignee</label>
+          <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.assignee_email} onChange={e => setForm(f => ({ ...f, assignee_email: e.target.value }))}>
+            <option value="">-- Không chọn --</option>
+            {KNOWN_USERS.map(u => <option key={u.email} value={u.email}>{u.name}</option>)}
+          </select>
+        </div>
+        <div style={{ padding: '8px 12px', borderRadius: 8, background: `${quadrant?.color}14`, fontSize: 12, color: quadrant?.color, fontWeight: 600 }}>
+          {quadrant?.label}: {quadrant?.subtitle}
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 9, border: '1px solid var(--border-separator)', background: 'none', cursor: 'pointer', fontSize: 14 }}>Huỷ</button>
+          <button type="submit" disabled={!form.title.trim() || !form.project_id} style={{ padding: '8px 16px', borderRadius: 9, border: 'none', background: 'var(--accent-blue)', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600, opacity: (!form.title.trim() || !form.project_id) ? 0.5 : 1 }}>Tạo Task</button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+function QuadrantDropZone({ quadrant, tasks, projectMap, onAdd }) {
   const { setNodeRef, isOver } = useDroppable({ id: quadrant.id })
   return (
     <div
@@ -82,12 +140,16 @@ function QuadrantDropZone({ quadrant, tasks, projectMap }) {
           <div style={{ fontSize: 14, fontWeight: 700, color: quadrant.color }}>{quadrant.label}</div>
           <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>{quadrant.subtitle}</div>
         </div>
-        <span style={{
-          fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
-          background: `${quadrant.color}18`, color: quadrant.color,
-        }}>
-          {tasks.length}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: `${quadrant.color}18`, color: quadrant.color }}>
+            {tasks.length}
+          </span>
+          <button
+            onClick={onAdd}
+            style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: `${quadrant.color}18`, cursor: 'pointer', color: quadrant.color, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}
+            title="Thêm task"
+          >+</button>
+        </div>
       </div>
 
       <div style={{ flex: 1, padding: '12px', overflowY: 'auto', maxHeight: 'calc(50vh - 130px)' }}>
@@ -114,6 +176,7 @@ export default function Matrix() {
   const { projects, tasks, loadTasks, loadProjects, updateTask, currentUser } = useAppStore()
   const [assigneeFilter, setAssigneeFilter] = useState(currentUser?.email || '')
   const [activeTask, setActiveTask] = useState(null)
+  const [addModal, setAddModal] = useState(null) // { quadrant } | null
 
   useEffect(() => {
     loadProjects().then(projs => {
@@ -191,7 +254,7 @@ export default function Matrix() {
           gap: 16, height: 'calc(100vh - 200px)',
         }}>
           {QUADRANTS.map(q => (
-            <QuadrantDropZone key={q.id} quadrant={q} tasks={matrix[q.id]} projectMap={projectMap} />
+            <QuadrantDropZone key={q.id} quadrant={q} tasks={matrix[q.id]} projectMap={projectMap} onAdd={() => setAddModal({ quadrant: q })} />
           ))}
         </div>
         <DragOverlay>
@@ -200,6 +263,13 @@ export default function Matrix() {
           )}
         </DragOverlay>
       </DndContext>
+
+      <AddTaskModal
+        open={!!addModal}
+        onClose={() => setAddModal(null)}
+        quadrant={addModal?.quadrant}
+        projects={projects.filter(p => p.status === 'active')}
+      />
     </PageWrapper>
   )
 }
