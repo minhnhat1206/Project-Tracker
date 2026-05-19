@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { DndContext, DragOverlay, useDroppable, useDraggable, closestCenter } from '@dnd-kit/core'
+import { DndContext, DragOverlay, useDroppable, useDraggable, rectIntersection, useSensor, useSensors, PointerSensor } from '@dnd-kit/core'
 import PageWrapper from '../components/layout/PageWrapper'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
@@ -20,32 +20,49 @@ function getQuadrantId(task) {
   return 'q4'
 }
 
-function MiniTaskCard({ task, color, projectName, isDragging = false }) {
+function MiniTaskCard({ task, color, projectName, isDragging = false, onToggleDone }) {
+  const isDone = task.status === 'done'
   return (
     <div style={{
       padding: '10px 12px',
       background: isDragging ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.6)',
       borderRadius: 10,
       borderLeft: `3px solid ${color}`,
-      cursor: 'grab',
-      opacity: isDragging ? 0.5 : 1,
+      cursor: isDragging ? 'grabbing' : 'grab',
+      opacity: isDragging ? 0.5 : isDone ? 0.6 : 1,
       transition: 'all 150ms',
       marginBottom: 6,
+      display: 'flex', alignItems: 'flex-start', gap: 8,
     }}>
-      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 5 }}>{task.title}</div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{
-          fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4,
-          background: 'rgba(60,60,67,0.08)', color: 'var(--text-tertiary)',
-          maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
-          {projectName}
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {task.deadline && (
-            <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{task.deadline}</span>
-          )}
-          <Avatar email={task.assignee_email} size={20} />
+      {onToggleDone && (
+        <button
+          type="button"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={e => { e.stopPropagation(); onToggleDone() }}
+          style={{
+            flexShrink: 0, marginTop: 1, width: 16, height: 16, borderRadius: 4,
+            border: `2px solid ${isDone ? color : 'var(--border-separator)'}`,
+            background: isDone ? color : 'transparent',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, transition: 'all 150ms',
+          }}
+        >
+          {isDone && <svg width="8" height="7" viewBox="0 0 8 7" fill="none"><path d="M1 3.5L3 6L7.5 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+        </button>
+      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: isDone ? 'var(--text-tertiary)' : 'var(--text-primary)', textDecoration: isDone ? 'line-through' : 'none', marginBottom: 5 }}>{task.title}</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{
+            fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4,
+            background: 'rgba(60,60,67,0.08)', color: 'var(--text-tertiary)',
+            maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {projectName}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {task.deadline && <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{task.deadline}</span>}
+            <Avatar email={task.assignee_email} size={20} />
+          </div>
         </div>
       </div>
     </div>
@@ -54,9 +71,16 @@ function MiniTaskCard({ task, color, projectName, isDragging = false }) {
 
 function DraggableMiniTask({ task, color, projectName }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id, data: { task } })
+  const { updateTask } = useAppStore()
+
+  const handleToggleDone = () => {
+    const newStatus = task.status === 'done' ? 'todo' : 'done'
+    updateTask(task.id, { status: newStatus }).catch(err => console.error('[matrix toggle]', err.message))
+  }
+
   return (
-    <div ref={setNodeRef} {...listeners} {...attributes}>
-      <MiniTaskCard task={task} color={color} projectName={projectName} isDragging={isDragging} />
+    <div ref={setNodeRef} {...listeners} {...attributes} style={{ touchAction: 'none' }}>
+      <MiniTaskCard task={task} color={color} projectName={projectName} isDragging={isDragging} onToggleDone={handleToggleDone} />
     </div>
   )
 }
@@ -182,6 +206,7 @@ export default function Matrix() {
   const [assigneeFilter, setAssigneeFilter] = useState(currentUser?.email || '')
   const [activeTask, setActiveTask] = useState(null)
   const [addModal, setAddModal] = useState(null) // { quadrant } | null
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   useEffect(() => {
     loadProjects().then(projs => {
@@ -253,7 +278,7 @@ export default function Matrix() {
         </span>
       </div>
 
-      <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
+      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} collisionDetection={rectIntersection}>
         <div style={{
           display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr',
           gap: 16, height: 'calc(100vh - 200px)',

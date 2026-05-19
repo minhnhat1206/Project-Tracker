@@ -116,10 +116,12 @@ export default function Dashboard() {
   const myTasks = useMemo(() => {
     if (!currentUser) return []
     const today = new Date(); today.setHours(0, 0, 0, 0)
+    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1)
     return allTasks
       .filter(t =>
         t.assignee_email === currentUser.email &&
-        (t.status === 'todo' || t.status === 'in_progress')
+        (t.status === 'todo' || t.status === 'in_progress') &&
+        (t.status === 'in_progress' || (t.deadline && new Date(t.deadline + 'T00:00:00') < tomorrow))
       )
       .sort((a, b) => {
         const aOver = a.deadline && new Date(a.deadline + 'T00:00:00') < today
@@ -184,7 +186,7 @@ export default function Dashboard() {
           <div style={{ display: 'flex', gap: 10 }}>
             <div style={{ textAlign: 'center', padding: '8px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.6)' }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent-blue)' }}>{myTasks.length}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Công việc</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Task hôm nay</div>
             </div>
             {inProgressCount > 0 && (
               <div style={{ textAlign: 'center', padding: '8px 16px', borderRadius: 12, background: 'rgba(0,122,255,0.08)' }}>
@@ -204,7 +206,7 @@ export default function Dashboard() {
         {/* Task list */}
         <div style={{ padding: '4px 24px 8px' }}>
           {myTasks.length === 0 ? (
-            <EmptyState title="Không có task nào" description="Các task được giao cho bạn sẽ hiện ở đây." icon="✅" />
+            <EmptyState title="Không có task nào hôm nay" description="Không có task nào đến hạn hôm nay hoặc đang thực hiện." icon="✅" />
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: myTasks.length > 5 ? '1fr 1fr' : '1fr', gap: '0 32px' }}>
               {myTasks.map(task => (

@@ -31,7 +31,7 @@ const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
 export default function CalendarView() {
-  const { projects, tasks, loadProjects, loadTasks, currentUser } = useAppStore()
+  const { projects, tasks, loadProjects, loadTasks, currentUser, updateTask } = useAppStore()
   const [viewDate, setViewDate] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState(null)
   const [selectedTask, setSelectedTask] = useState(null)
@@ -91,6 +91,11 @@ export default function CalendarView() {
     projects.forEach(p => { m[p.id] = p })
     return m
   }, [projects])
+
+  const toggleDone = (task) => {
+    const newStatus = task.status === 'done' ? 'todo' : 'done'
+    updateTask(task.id, { status: newStatus }).catch(err => console.error('[calendar] toggleDone:', err.message))
+  }
 
   // Day detail panel tasks
   const selectedDayTasks = selectedDay ? (tasksByDate[selectedDay] || []) : []
@@ -218,26 +223,40 @@ export default function CalendarView() {
             ) : (
               selectedDayTasks.map(task => {
                 const chip = STATUS_CHIP[task.status] || STATUS_CHIP.todo
+                const isDone = task.status === 'done'
                 return (
                   <div
                     key={task.id}
-                    onClick={() => setSelectedTask(task)}
                     style={{
                       padding: '10px 12px', borderRadius: 10, marginBottom: 8,
                       background: 'rgba(255,255,255,0.6)', border: `1px solid ${chip.bg}`,
-                      cursor: 'pointer', transition: 'all 150ms',
+                      transition: 'all 150ms', display: 'flex', alignItems: 'flex-start', gap: 8,
                     }}
                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.9)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.6)'}
                   >
-                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 5 }}>{task.title}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 4, background: chip.bg, color: chip.color }}>
-                        {task.status === 'todo' ? 'Todo' : task.status === 'in_progress' ? 'Đang làm' : task.status === 'done' ? 'Xong' : 'Huỷ'}
-                      </span>
-                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                        {projectMap[task.project_id]?.name || ''}
-                      </span>
+                    <button
+                      type="button"
+                      onClick={() => toggleDone(task)}
+                      style={{
+                        flexShrink: 0, marginTop: 2, width: 16, height: 16, borderRadius: 4,
+                        border: `2px solid ${isDone ? chip.dot : 'var(--border-separator)'}`,
+                        background: isDone ? chip.dot : 'transparent',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, transition: 'all 150ms',
+                      }}
+                    >
+                      {isDone && <svg width="8" height="7" viewBox="0 0 8 7" fill="none"><path d="M1 3.5L3 6L7.5 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                    </button>
+                    <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setSelectedTask(task)}>
+                      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 5, textDecoration: isDone ? 'line-through' : 'none', opacity: isDone ? 0.6 : 1 }}>{task.title}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 4, background: chip.bg, color: chip.color }}>
+                          {task.status === 'todo' ? 'Todo' : task.status === 'in_progress' ? 'Đang làm' : task.status === 'done' ? 'Xong' : 'Huỷ'}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                          {projectMap[task.project_id]?.name || ''}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )
@@ -251,7 +270,7 @@ export default function CalendarView() {
       <Modal open={!!selectedTask} onClose={() => setSelectedTask(null)} title="Chi tiết task">
         {selectedTask && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ fontSize: 18, fontWeight: 600 }}>{selectedTask.title}</div>
+            <div style={{ fontSize: 18, fontWeight: 600, textDecoration: selectedTask.status === 'done' ? 'line-through' : 'none', opacity: selectedTask.status === 'done' ? 0.6 : 1 }}>{selectedTask.title}</div>
             {selectedTask.description && (
               <div style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{selectedTask.description}</div>
             )}
@@ -286,6 +305,23 @@ export default function CalendarView() {
                 </div>
               </div>
             )}
+            <div style={{ paddingTop: 8, borderTop: '1px solid var(--border-separator)', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  const newStatus = selectedTask.status === 'done' ? 'todo' : 'done'
+                  toggleDone(selectedTask)
+                  setSelectedTask(prev => ({ ...prev, status: newStatus }))
+                }}
+                style={{
+                  padding: '8px 18px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                  fontWeight: 600, fontSize: 13, transition: 'all 150ms',
+                  background: selectedTask.status === 'done' ? 'rgba(60,60,67,0.1)' : '#34C759',
+                  color: selectedTask.status === 'done' ? 'var(--text-secondary)' : '#fff',
+                }}
+              >
+                {selectedTask.status === 'done' ? 'Bỏ hoàn thành' : 'Đánh dấu hoàn thành'}
+              </button>
+            </div>
           </div>
         )}
       </Modal>
