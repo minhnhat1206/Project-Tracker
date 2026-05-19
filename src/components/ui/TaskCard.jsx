@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import Avatar from './Avatar'
+import Badge from './Badge'
 import useAppStore from '../../store/useAppStore'
 import { getUserName } from '../../config/users'
 
@@ -31,6 +32,7 @@ function getDeadlineStyle(deadline) {
 export default function TaskCard({ task, index = 0, onClick }) {
   const { updateTask } = useAppStore()
   const isDone = task.status === 'done'
+  const isCancelled = task.status === 'cancelled'
   const quadrant = getQuadrant(task)
   const accentColor = quadrantColors[quadrant]
   const deadlineStyle = getDeadlineStyle(task.deadline)
@@ -111,9 +113,9 @@ export default function TaskCard({ task, index = 0, onClick }) {
       >
         <div style={{
           fontSize: 15, fontWeight: 500,
-          color: isDone ? 'var(--text-tertiary)' : 'var(--text-primary)',
+          color: (isDone || isCancelled) ? 'var(--text-tertiary)' : 'var(--text-primary)',
           textDecoration: isDone ? 'line-through' : 'none',
-          opacity: isDone ? 0.5 : 1,
+          opacity: (isDone || isCancelled) ? 0.5 : 1,
           transition: 'all 200ms',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
@@ -143,6 +145,9 @@ export default function TaskCard({ task, index = 0, onClick }) {
         onClick={onClick}
         style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, padding: '14px 16px 14px 0', cursor: 'pointer' }}
       >
+        {(task.status === 'in_progress' || task.status === 'cancelled') && (
+          <Badge type={task.status} style={{ fontSize: 10, padding: '1px 7px' }} />
+        )}
         {task.deadline && deadlineStyle && (
           <span style={{
             fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 6,

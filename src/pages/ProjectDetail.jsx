@@ -157,13 +157,9 @@ function KanbanColumn({ column, tasks, onEdit, onAdd }) {
 function KanbanBoard({ tasks, onEdit, onAdd }) {
   const { updateTask } = useAppStore()
   const [activeTask, setActiveTask] = useState(null)
-  const sevenDaysAgo = useMemo(() => { const d = new Date(); d.setDate(d.getDate() - 7); d.setHours(0, 0, 0, 0); return d }, [])
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
-  const colTasks = (colId) => {
-    if (colId !== 'done') return tasks.filter(t => t.status === colId)
-    return tasks.filter(t => t.status === 'done' && new Date(t.updated_at) >= sevenDaysAgo)
-  }
+  const colTasks = (colId) => tasks.filter(t => t.status === colId)
 
   const handleDragEnd = ({ active, over }) => {
     setActiveTask(null)
@@ -492,7 +488,9 @@ function TaskModal({ open, onClose, projectId, task = null, defaultStatus = 'tod
 
 // ─── ProjectDetail ─────────────────────────────────────────────────────────────
 
-const TABS = ['all', 'todo', 'in_progress', 'done']
+const TABS = ['all', 'todo', 'in_progress', 'done', 'cancelled']
+
+const TAB_LABEL = { all: 'All', todo: 'Todo', in_progress: 'In Progress', done: 'Done', cancelled: 'Cancelled' }
 
 export default function ProjectDetail() {
   const { id } = useParams()
@@ -518,8 +516,9 @@ export default function ProjectDetail() {
   }, [id])
 
   const filteredTasks = useMemo(() => {
-    let result = projectTasks
-    if (tab !== 'all') result = result.filter(t => t.status === tab)
+    let result = tab === 'all'
+      ? projectTasks.filter(t => t.status !== 'cancelled')
+      : projectTasks.filter(t => t.status === tab)
     if (filters.assignee_email) result = result.filter(t => t.assignee_email === filters.assignee_email)
     if (filters.deadline_from) result = result.filter(t => t.deadline >= filters.deadline_from)
     if (filters.deadline_to) result = result.filter(t => t.deadline <= filters.deadline_to)
@@ -685,18 +684,27 @@ export default function ProjectDetail() {
 
                 {/* Tabs (list view only) */}
                 {view === 'list' && (
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    {TABS.map(t => (
-                      <button key={t} onClick={() => setTab(t)} style={{
-                        padding: '5px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                        fontSize: 13, fontWeight: 500,
-                        background: tab === t ? 'var(--accent-blue)' : 'rgba(60,60,67,0.06)',
-                        color: tab === t ? '#fff' : 'var(--text-secondary)', transition: 'all 150ms',
-                      }}>
-                        {t === 'all' ? 'All' : t === 'in_progress' ? 'In Progress' : t.charAt(0).toUpperCase() + t.slice(1)}
-                        {' '}<span style={{ opacity: 0.7 }}>({projectTasks.filter(x => t === 'all' || x.status === t).length})</span>
-                      </button>
-                    ))}
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {TABS.map(t => {
+                      const count = t === 'all'
+                        ? projectTasks.filter(x => x.status !== 'cancelled').length
+                        : projectTasks.filter(x => x.status === t).length
+                      const isCancelledTab = t === 'cancelled'
+                      return (
+                        <button key={t} onClick={() => setTab(t)} style={{
+                          padding: '5px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                          fontSize: 13, fontWeight: 500,
+                          background: tab === t
+                            ? (isCancelledTab ? 'var(--accent-red)' : 'var(--accent-blue)')
+                            : 'rgba(60,60,67,0.06)',
+                          color: tab === t ? '#fff' : (isCancelledTab ? 'var(--accent-red)' : 'var(--text-secondary)'),
+                          transition: 'all 150ms',
+                        }}>
+                          {TAB_LABEL[t]}
+                          {' '}<span style={{ opacity: 0.7 }}>({count})</span>
+                        </button>
+                      )
+                    })}
                   </div>
                 )}
               </div>
