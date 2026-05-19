@@ -1,35 +1,11 @@
 // Code.gs — Entry point, routing, serve web app
 
 function doGet(e) {
-  if (e && e.parameter && e.parameter.action) {
-    try {
-      const action = e.parameter.action
-      const payload = e.parameter.payload ? JSON.parse(e.parameter.payload) : {}
-      const result = process(action, payload)
-      return ContentService.createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON)
-    } catch (err) {
-      return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.message }))
-        .setMimeType(ContentService.MimeType.JSON)
-    }
-  }
   const html = HtmlService.createHtmlOutputFromFile('index')
   html.setTitle('Project Tracker')
   html.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
   html.addMetaTag('viewport', 'width=device-width, initial-scale=1')
   return html
-}
-
-function doPost(e) {
-  try {
-    const { action, payload } = JSON.parse(e.postData.contents)
-    const result = process(action, payload)
-    return ContentService.createTextOutput(JSON.stringify(result))
-      .setMimeType(ContentService.MimeType.JSON)
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.message }))
-      .setMimeType(ContentService.MimeType.JSON)
-  }
 }
 
 function diagnose() {
@@ -126,6 +102,12 @@ function process(action, payload) {
         break
       case 'setupTriggers':
         result = setupTriggers()
+        break
+      case 'setupMembersSheet':
+        result = setupMembersSheet()
+        break
+      case 'migrateProjectIds':
+        result = migrateProjectIds()
         break
       case 'diagnose':
         result = diagnose()

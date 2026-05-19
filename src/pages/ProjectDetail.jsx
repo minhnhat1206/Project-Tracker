@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { DndContext, DragOverlay, useDroppable, useDraggable, closestCenter } from '@dnd-kit/core'
+import { DndContext, DragOverlay, useDroppable, useDraggable, rectIntersection, useSensor, useSensors, PointerSensor } from '@dnd-kit/core'
 import { Plus, RefreshCw, ChevronLeft, LayoutList, LayoutGrid, BarChart2, UserPlus, X } from 'lucide-react'
 import PageWrapper from '../components/layout/PageWrapper'
 import GlassCard from '../components/ui/GlassCard'
@@ -114,14 +114,11 @@ function KanbanCard({ task, onClick }) {
 
 function DraggableKanbanCard({ task, onEdit }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id, data: { task } })
-  const didDrag = useRef(false)
-  useEffect(() => { if (isDragging) didDrag.current = true }, [isDragging])
   return (
     <div
       ref={setNodeRef} {...listeners} {...attributes}
-      onPointerDown={() => { didDrag.current = false }}
-      onClick={() => { if (!didDrag.current) onEdit(task) }}
-      style={{ opacity: isDragging ? 0.3 : 1, touchAction: 'none', cursor: 'grab' }}
+      onClick={() => { if (!isDragging) onEdit(task) }}
+      style={{ opacity: isDragging ? 0.35 : 1, touchAction: 'none', cursor: isDragging ? 'grabbing' : 'grab' }}
     >
       <KanbanCard task={task} />
     </div>
@@ -161,6 +158,7 @@ function KanbanBoard({ tasks, onEdit, onAdd }) {
   const { updateTask } = useAppStore()
   const [activeTask, setActiveTask] = useState(null)
   const sevenDaysAgo = useMemo(() => { const d = new Date(); d.setDate(d.getDate() - 7); d.setHours(0, 0, 0, 0); return d }, [])
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   const colTasks = (colId) => {
     if (colId !== 'done') return tasks.filter(t => t.status === colId)
@@ -177,9 +175,10 @@ function KanbanBoard({ tasks, onEdit, onAdd }) {
 
   return (
     <DndContext
+      sensors={sensors}
       onDragStart={({ active }) => setActiveTask(active.data.current?.task)}
       onDragEnd={handleDragEnd}
-      collisionDetection={closestCenter}
+      collisionDetection={rectIntersection}
     >
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
         {KANBAN_COLUMNS.map(col => (

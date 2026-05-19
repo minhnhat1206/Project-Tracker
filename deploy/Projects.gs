@@ -17,9 +17,10 @@ function createProject(data) {
 
   appendRow('Projects', project)
 
-  // Add owner to Members sheet
+  // Add owner to Members sheet (with project_id for proper scoping)
   appendRow('Members', {
     id: generateId(),
+    project_id: id,
     email: currentEmail,
     display_name: data.display_name || currentEmail.split('@')[0],
     role: 'owner',
@@ -32,8 +33,20 @@ function createProject(data) {
 function getProjects(userEmail) {
   const email = userEmail || getCurrentUser().email
   const rows = getSheetData('Projects')
+  const allMembers = getSheetData('Members')
+
+  // Collect project IDs where this user has a Members row (authoritative when project_id is set)
+  const memberProjectIds = new Set()
+  allMembers.forEach(m => {
+    if (String(m.email) === email && m.project_id) {
+      memberProjectIds.add(String(m.project_id))
+    }
+  })
+
   return rows.filter(p => {
     if (p.owner_email === email) return true
+    if (memberProjectIds.has(String(p.id))) return true
+    // Fallback: check member_emails directly (for rows not yet migrated)
     const members = p.member_emails ? p.member_emails.split(',').map(e => e.trim()) : []
     return members.includes(email)
   })
@@ -75,9 +88,14 @@ function addMember(projectId, email) {
   const rowIndex = findRowById('Projects', projectId)
   updateRow('Projects', rowIndex, { member_emails: currentMembers.join(',') })
 
-  const memberId = generateId()
+  // Reuse existing Members row if it exists (avoid duplicates on re-add)
+  const allMembers = getSheetData('Members')
+  const existing = allMembers.find(m => m.project_id === projectId && m.email === email)
+  if (existing) return existing
+
   const member = {
-    id: memberId,
+    id: generateId(),
+    project_id: projectId,
     email,
     display_name: email.split('@')[0],
     role: 'member',
@@ -88,22 +106,43 @@ function addMember(projectId, email) {
 }
 
 function removeMember(projectId, email) {
+  requireOwner(projectId)
   const project = getProjectById(projectId)
-  const currentMembers = project.member_emails ? project.member_emails.split(',').map(e => e.trim()).filter(Boolean) : []
+  if (email === project.owner_email) throw new Error('Cannot remove project owner')
+
+  const currentMembers = project.member_emails ? project.member_emails.split(',').map(e => e.trim()) : []
   const updated = currentMembers.filter(m => m !== email)
   const rowIndex = findRowById('Projects', projectId)
-  if (rowIndex === -1) throw new Error('Project not found in sheet')
   updateRow('Projects', rowIndex, { member_emails: updated.join(',') })
+
+  // Delete the member's row from Members sheet (search bottom-up to avoid index shift)
+  const sheet = getSheet('Members')
+  const data = sheet.getDataRange().getValues()
+  const headers = data[0]
+  const projectIdCol = headers.indexOf('project_id')
+  const emailCol = headers.indexOf('email')
+  if (projectIdCol !== -1 && emailCol !== -1) {
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][projectIdCol]) === String(projectId) && String(data[i][emailCol]) === String(email)) {
+        sheet.deleteRow(i + 1)
+        break
+      }
+    }
+  }
+
   return { member_emails: updated.join(',') }
 }
 
 function getMembers(projectId) {
-  const project = getProjectById(projectId)
-  const memberEmails = project.member_emails ? project.member_emails.split(',').map(e => e.trim()).filter(Boolean) : []
+  requireMember(projectId)
   const allMembers = getSheetData('Members')
-  // Return matched members; fall back to email-only objects if not in Members sheet
-  return memberEmails.map(email => {
-    const found = allMembers.find(m => m.email === email)
-    return found || { id: email, email, display_name: email.split('@')[0], role: email === project.owner_email ? 'owner' : 'member', joined_at: '' }
-  })
+
+  // Primary: filter by project_id (new schema)
+  const byProject = allMembers.filter(m => String(m.project_id) === String(projectId))
+  if (byProject.length > 0) return byProject
+
+  // Fallback for legacy rows that don't have project_id set
+  const project = getProjectById(projectId)
+  const memberEmails = project.member_emails ? project.member_emails.split(',').map(e => e.trim()) : []
+  return allMembers.filter(m => memberEmails.includes(m.email))
 }

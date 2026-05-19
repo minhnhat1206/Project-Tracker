@@ -26,10 +26,6 @@ function createTask(data) {
 
   appendRow('Tasks', task)
 
-  // Trigger sync
-  if (task.deadline) {
-    try { pushTaskToCalendar(task) } catch (e) { logSync('push', 'calendar', id, 'error', e.message) }
-  }
   const effectiveEmail = Session.getEffectiveUser().getEmail()
   if (isSyncUser(effectiveEmail)) {
     try { pushTaskToGoogleTasks(task) } catch (e) { logSync('push', 'tasks', id, 'error', e.message) }
@@ -88,16 +84,10 @@ function updateTask(id, data) {
   updateRow('Tasks', rowIndex, allowed)
 
   const updated = { ...task, ...allowed }
-
-  // Sync
   const effectiveEmail = Session.getEffectiveUser().getEmail()
-  if (updated.deadline) {
-    try { pushTaskToCalendar(updated) } catch (e) { logSync('push', 'calendar', id, 'error', e.message) }
-  }
   if (isSyncUser(effectiveEmail)) {
     try { pushTaskToGoogleTasks(updated) } catch (e) { logSync('push', 'tasks', id, 'error', e.message) }
   }
-
   return updated
 }
 
@@ -105,14 +95,12 @@ function deleteTask(id) {
   const task = getTaskById(id)
   requireMember(task.project_id)
 
-  if (task.calendar_event_id) {
-    try { deleteCalendarEvent(task.calendar_event_id) } catch (e) { logSync('push', 'calendar', id, 'error', e.message) }
-  }
-
   const effectiveEmail = Session.getEffectiveUser().getEmail()
   if (isSyncUser(effectiveEmail) && task.gtask_id) {
     try {
-      deleteGoogleTask(null, task.gtask_id)
+      const project = getProjectById(task.project_id)
+      const tasklistId = ensureTasklist(project.name)
+      deleteGoogleTask(tasklistId, task.gtask_id)
     } catch (e) { logSync('push', 'tasks', id, 'error', e.message) }
   }
 

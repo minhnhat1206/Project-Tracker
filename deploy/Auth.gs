@@ -5,7 +5,7 @@ const SYNC_USER_EMAIL = 'minhnhatnhc@gmail.com'
 function getCurrentUser() {
   let email = Session.getActiveUser().getEmail()
   if (!email) email = Session.getEffectiveUser().getEmail()
-  return { email, displayName: email.split('@')[0] }
+  return { email, displayName: email ? email.split('@')[0] : 'User' }
 }
 
 function isProjectMember(projectId, email) {
