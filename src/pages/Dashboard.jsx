@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo } from 'react'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { CheckSquare, TrendingUp, AlertCircle, Clock } from 'lucide-react'
 import PageWrapper from '../components/layout/PageWrapper'
 import StatCard from '../components/ui/StatCard'
@@ -121,7 +122,7 @@ export default function Dashboard() {
       .filter(t =>
         t.assignee_email === currentUser.email &&
         (t.status === 'todo' || t.status === 'in_progress') &&
-        (t.status === 'in_progress' || (t.deadline && new Date(t.deadline + 'T00:00:00') < tomorrow))
+        (t.status === 'in_progress' || !t.deadline || new Date(t.deadline + 'T00:00:00') < tomorrow)
       )
       .sort((a, b) => {
         const aOver = a.deadline && new Date(a.deadline + 'T00:00:00') < today
@@ -145,6 +146,18 @@ export default function Dashboard() {
     const counts = { todo: 0, in_progress: 0, done: 0, cancelled: 0 }
     allTasks.forEach(t => { if (counts[t.status] !== undefined) counts[t.status]++ })
     return Object.entries(counts).filter(([_, v]) => v > 0).map(([name, value]) => ({ name, value }))
+  }, [allTasks])
+
+  const weekChart = useMemo(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const DAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(today)
+      d.setDate(d.getDate() - (6 - i))
+      const dateStr = [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
+      const count = allTasks.filter(t => t.status === 'done' && t.updated_at && t.updated_at.slice(0, 10) === dateStr).length
+      return { date: dateStr, label: i === 6 ? 'Hôm nay' : DAY_LABELS[d.getDay()], count }
+    })
   }, [allTasks])
 
   const greeting = useMemo(() => {
@@ -224,6 +237,31 @@ export default function Dashboard() {
         <StatCard icon={AlertCircle} label="Overdue" value={stats.overdue} color="var(--accent-red)" />
         <StatCard icon={Clock} label="Hours Logged" value={stats.hours} color="var(--accent-orange)" />
       </div>
+
+      {/* ── Weekly completion chart ── */}
+      <GlassCard style={{ padding: '18px 24px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 14 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Task hoàn thành trong tuần</div>
+          <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>7 ngày gần đây</div>
+        </div>
+        <ResponsiveContainer width="100%" height={140}>
+          <LineChart data={weekChart} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(60,60,67,0.07)" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#8E8E93' }} axisLine={false} tickLine={false} />
+            <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#8E8E93' }} axisLine={false} tickLine={false} width={28} />
+            <Tooltip
+              contentStyle={{ borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.97)', boxShadow: '0 4px 20px rgba(0,0,0,0.10)', fontSize: 13, padding: '8px 14px' }}
+              formatter={(val) => [`${val} task`, 'Hoàn thành']}
+              labelStyle={{ fontWeight: 600, marginBottom: 2 }}
+              cursor={{ stroke: 'rgba(0,122,255,0.15)', strokeWidth: 2 }}
+            />
+            <Line type="monotone" dataKey="count" stroke="#007AFF" strokeWidth={2.5}
+              dot={{ r: 4, fill: '#007AFF', stroke: '#fff', strokeWidth: 2 }}
+              activeDot={{ r: 6, fill: '#007AFF', stroke: '#fff', strokeWidth: 2 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </GlassCard>
 
       {/* ── Charts + Project Progress ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
